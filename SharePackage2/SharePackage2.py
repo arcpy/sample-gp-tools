@@ -11,7 +11,6 @@ ago.client.HTTPConnection._http_vsn_str='HTTP/1.0'
 # Valid package types on portal
 pkgTypes = {".LPK": "Layer Package",
             ".MPK": "Map Package",
-            ".BPK": "Mobile Basemap Package",
             ".TPK": "Tile Package",
             ".GPK": "Geoprocessing Package",
             ".RPK": "Rule Package",
@@ -20,7 +19,6 @@ pkgTypes = {".LPK": "Layer Package",
             ".APTX": "Project Template",
             ".MMPK": "Mobile Map Package"
             }
-
 
 def sharePackage2(in_package, username, password, summary, tags, credits, everyone, groups, org):
 
