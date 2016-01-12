@@ -4,15 +4,15 @@ These tools are provided by Esri as samples to be used with ArcGIS Desktop (ArcM
 
 ## Tools
 
-* [Features to GPX](https://devtopia.esri.com/kevi5105/SampleTools/tree/master/FeaturesToGPX)
+* [Features to GPX](FeaturesToGPX)
   * Convert features into a GPX file.
-* [Layer To KML with Attachments](https://devtopia.esri.com/kevi5105/SampleTools/tree/master/LayerToKML_attachments)
+* [Layer To KML with Attachments](LayerToKML_attachments)
   * Converts a layer featureclass into a KMZ file and insert images from attachments into the output KMZ popup.
-* [Near By Group]  (https://devtopia.esri.com/kevi5105/SampleTools/tree/master/NearByGroup)
+* [Near By Group](NearByGroup)
   * Determines the distance from each feature in the Input Features to the nearest feature with the same attributes in the Near Features.
-* [Share Package 2](https://devtopia.esri.com/kevi5105/SampleTools/tree/master/SharePackage2)
+* [Share Package 2](SharePackage2)
   * Uploads a package file to arcgis.com or your local portal.
-* [To Attachments](https://devtopia.esri.com/kevi5105/SampleTools/tree/master/ToAttachment)
+* [To Attachments](ToAttachment)
   * Geoprocessing tool and script that converts the files stored or referenced in a dataset to geodatabase attachments. Files to be added as attachments can come from a Raster field, BLOB field, or text field containing a hyperlink or path.
 
 
@@ -48,7 +48,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-A copy of the license is available in the repository's [license.txt](https://devtopia.esri.com/kevi5105/SampleTools/blob/master/LICENSE) file.
+A copy of the license is available in the repository's [license.txt](LICENSE) file.
 
 [](Esri Tags: arcpy sample tool python script)
 [](Esri Language: Python)​
