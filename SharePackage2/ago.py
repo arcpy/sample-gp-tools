@@ -16,12 +16,14 @@ import os
 from io import BytesIO
 import codecs
 import uuid
+import shutil
 
 try:
     import http.client as client
     import urllib.parse as parse
     from urllib.request import urlopen as urlopen
     from urllib.request import Request as request
+    from urllib.request import HTTPError, URLError
     from urllib.parse import urlencode as encode
 # py2
 except ImportError:
@@ -29,24 +31,32 @@ except ImportError:
     from urllib2 import urlparse as parse
     from urllib2 import urlopen as urlopen
     from urllib2 import Request as request
+    from urllib2 import HTTPError, URLError
     from urllib import urlencode as encode
     unicode = str
 
 # Valid package types on portal
-itemTypes = {".LPK": "Layer Package",
-             ".MPK": "Map Package",
-             ".TPK": "Tile Package",
-             ".GPK": "Geoprocessing Package",
-             ".RPK": "Rule Package",
-             ".GCPK": "Locator Package",
-             ".PPKX": "Project Package",
-             ".APTX": "Project Template",
-             ".MMPK": "Mobile Map Package"
-             }
+ITEM_TYPES = {
+    ".LPK": "Layer Package",
+    ".LPKX": "Layer Package",
+    ".MPK": "Map Package",
+    ".MPKX": "Map Package",
+    ".GPK": "Geoprocessing Package",
+    ".GPKX": "Geoprocessing Package",
+    ".RPK": "Rule Package",
+    ".GCPK": "Locator Package",
+    ".PPKX": "Project Package",
+    ".APTX": "Project Template",
+    ".TPK": "Tile Package",
+    ".MMPK": "Mobile Map Package",
+    ".VTPK": "Vector Tile Package"
+}
+
 
 class MultipartFormdataEncoder(object):
     """
-    USAGE:   request_headers, request_data = MultipartFormdataEncoder().encodeForm(params, files)
+    Usage:   request_headers, request_data =
+                 MultipartFormdataEncoder().encodeForm(params, files)
     Inputs:
        params = {"f": "json", "token": token, "type": item_type,
                  "title": title, "tags": tags, "description": description}
@@ -56,7 +66,9 @@ class MultipartFormdataEncoder(object):
 
     def __init__(self):
         self.boundary = uuid.uuid4().hex
-        self.content_type = {"Content-Type": "multipart/form-data; boundary={}".format(self.boundary)}
+        self.content_type = {
+            "Content-Type": "multipart/form-data; boundary={}".format(self.boundary)
+        }
 
     @classmethod
     def u(cls, s):
@@ -73,7 +85,8 @@ class MultipartFormdataEncoder(object):
         encoder = codecs.getencoder('utf-8')
         for key, value in fields.items():
             yield encoder('--{}\r\n'.format(self.boundary))
-            yield encoder(self.u('Content-Disposition: form-data; name="{}"\r\n').format(key))
+            yield encoder(
+                self.u('Content-Disposition: form-data; name="{}"\r\n').format(key))
             yield encoder('\r\n')
             if isinstance(value, int) or isinstance(value, float):
                 value = str(value)
@@ -83,9 +96,13 @@ class MultipartFormdataEncoder(object):
         for key, value in files.items():
             if "filename" in value:
                 filename = value.get("filename")
+                content_disp = 'Content-Disposition: form-data;name=' + \
+                               '"{}"; filename="{}"\r\n'.format(key, filename)
+                content_type = 'Content-Type: {}\r\n'.format(
+                    mimetypes.guess_type(filename)[0] or 'application/octet-stream')
                 yield encoder('--{}\r\n'.format(self.boundary))
-                yield encoder(self.u('Content-Disposition: form-data; name="{}"; filename="{}"\r\n').format(key, filename))
-                yield encoder('Content-Type: {}\r\n'.format(mimetypes.guess_type(filename)[0] or 'application/octet-stream'))
+                yield encoder(content_disp)
+                yield encoder(content_type)
             yield encoder('\r\n')
             if "content" in value:
                 buff = value.get("content")
@@ -100,6 +117,7 @@ class MultipartFormdataEncoder(object):
             body.write(chunk)
         self.content_type["Content-Length"] = str(len(body.getvalue()))
         return self.content_type, body.getvalue()
+
 
 class AGOLHelper(object):
     """
@@ -125,6 +143,7 @@ class AGOLHelper(object):
             self.host = self._normalize_host_url(url_parts)
             if url_parts.netloc == 'www.arcgis.com':
                 self.is_arcgis_online = True
+                self.protocol = 'https'
 
         else:
             arcpy.AddError(NO_PORTAL_URL_MSG)
@@ -139,11 +158,13 @@ class AGOLHelper(object):
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
             'User-Agent': ('ago.py -- ArcGIS portal module 0.1')
         }
-        self.parameters = None
+
         self.portal_name = None
         self.portal_info = {}
         self.username = None
         self.login_method = None
+        self.expiration = None
+        self._password = None
 
     def login(self, username=None, password=None, repeat=None):
         """
@@ -173,7 +194,6 @@ class AGOLHelper(object):
             'password': self._password,
             'referer': "http://maps.esri.com",
             'expiration': 600,
-            'f': 'json'
         }
         token_response = self.url_request(
             token_url, token_parameters, 'POST', repeat=repeat)
@@ -183,7 +203,6 @@ class AGOLHelper(object):
             self.expiration = datetime.datetime.fromtimestamp(
                 token_response['expires'] / 1000) - datetime.timedelta(seconds=1)
 
-            # should we use SSL for handling traffic?
             if 'ssl' in token_response:
                 if token_response['ssl']:
                     self.protocol = 'https'
@@ -254,17 +273,12 @@ class AGOLHelper(object):
         # NOTE side-effects; do separately
         url = '{}/portals/self'.format(self.base_url)
 
-        self.parameters = {
-            'token': self.token,
-            'f': 'json'
-        }
-
-        portal_info = self.url_request(url, self.parameters)
+        portal_info = self.url_request(url)
         self.portal_info = portal_info
         self.portal_name = portal_info['portalName']
 
         url = '{}/community/self'.format(self.base_url)
-        user_info = self.url_request(url, self.parameters)
+        user_info = self.url_request(url)
         self.username = user_info['username']
 
         return self.portal_info
@@ -330,8 +344,44 @@ class AGOLHelper(object):
 
         return body, headers
 
+    def list_folders(self):
+        """
+        List available user folders.
 
-    def item(self, item_id=None):
+        Returns:
+            A dictionary of folder titles to ids.
+        """
+
+        folders = {}
+
+        folder_request = self.user_content()['folders']
+        for folder in folder_request:
+            folders[folder['title']] = folder['id']
+
+        return folders
+
+    def create_folder(self, name):
+        """
+        Create a folder item.
+        property to the created folder.
+        Arguments:
+            name -- folder name to create
+        Returns:
+            folder item id.
+        """
+        folder = None
+        url = '{}/content/users/{}/createFolder'.format(
+            self.base_url, self.username)
+
+        parameters = {'title': name}
+        response = self.url_request(url, parameters, 'POST')
+
+        if response is not None and 'folder' in response:
+            folder = response['folder']['id']
+
+        return folder
+
+    def item(self, item_id=None, repeat=None):
         """
         Get back information about a particular item. Must have read
         access to the item requested.
@@ -345,13 +395,67 @@ class AGOLHelper(object):
         results = {}
         if item_id:
             url = '{}/content/items/{}'.format(self.base_url, item_id)
-            parameters = {
-                'token': self.token,
-                'f': 'json'
-            }
-            results = self.url_request(url, parameters)
+            results = self.url_request(url, repeat=repeat)
         return results
 
+    def move_items(self, target_folder_id, items):
+        """
+        Move items to a target folder.
+
+        Arguments:
+            target_folder_id: folder id to move items to
+            items: list of one or more item ids to move
+
+        Returns:
+            None
+        """
+        # Test if we have a None object somewhere
+        # This could potentially be the case if one of the previous
+        # portal responses was not successful.
+        if None in items:
+            arcpy.AddError(EMPTY_ITEM_MSG)
+            return
+
+        url = '{}/content/users/{}/moveItems'.format(
+            self.base_url, self.username)
+
+        parameters = {
+            'folder': target_folder_id,
+            'items': ','.join(map(str, items))
+        }
+
+        move_response = self.url_request(url, parameters, request_type='POST')
+        if self.debug:
+            msg = "Moving items, using {} with parameters {}, got {}".format(
+                url, parameters, move_response)
+            arcpy.AddMessage(msg)
+
+        return move_response
+
+    def move_items(self, target_folder_id, items):
+        """
+        Move items to a target folder.
+        Arguments:
+            target_folder_id: folder id to move items to
+            items: list of one or more item ids to move
+        Returns:
+            None
+        """
+        # Test if we have a None object somewhere
+        # This could potentially be the case if one of the previous
+        # portal responses was not successful.
+
+        url = '{}/content/users/{}/moveItems'.format(
+            self.base_url, self.username)
+
+        parameters = {
+            'folder': target_folder_id,
+            'items': ','.join(map(str, items))
+        }
+
+        move_response = self.url_request(url, parameters, request_type='POST')
+
+        return move_response
 
     def share_items(self, groups=None, everyone=False, org=False, items=None):
         """
@@ -383,8 +487,6 @@ class AGOLHelper(object):
             self.base_url, self.username)
 
         parameters = {
-            'token': self.token,
-            'f': 'json',
             'everyone': everyone,
             'org': org,
             'items': ','.join(map(str, items))
@@ -402,7 +504,7 @@ class AGOLHelper(object):
         return sharing_response
 
     def search(self, title=None, item_type=None, group=None,
-               owner=None, item_id=None, repeat=None, num=10, id_only=True):
+               owner=None, item_id=None, repeat=None, num=10, id_only=True, name=None):
         """
         Search for items, a partial implementation of the
         search operation of the ArcGIS REST API. Requires one of:
@@ -428,8 +530,9 @@ class AGOLHelper(object):
             'title': title,
             'type': item_type,
             'group': group,
-            'owner': owner,
-            'id': item_id
+            'owner': self.username, #owner,
+            'id': item_id,
+            'name': name
         }
 
         query_parts = []
@@ -444,16 +547,14 @@ class AGOLHelper(object):
         else:
             query = " AND ".join(query_parts)
 
-        url = '{}/search'.format(self.base_url)
-        parameters = {
-            'token': self.token,
-            'f': 'json',
-            'num': num,
-            'q': query
-        }
         if self.debug:
             arcpy.AddMessage("Searching for '{}'".format(query))
 
+        url = '{}/search'.format(self.base_url)
+        parameters = {
+            'num': num,
+            'q': query
+        }
         response_info = self.url_request(url, parameters)
         results = []
 
@@ -501,12 +602,23 @@ class AGOLHelper(object):
             username = self.username
 
         url = '{}/community/users/{}'.format(self.base_url, username)
-        parameters = {
-            'f': 'json',
-            'token': self.token
-        }
-        return self.url_request(url, parameters)
+        return self.url_request(url)
 
+    def user_content(self, username=None):
+        """
+        User items and folders.
+
+        Arguments:
+            username -- user of interest
+
+        Returns:
+            A dictionary of user items and folders.
+        """
+        if username is None:
+            username = self.username
+
+        url = '{}/content/users/{}'.format(self.base_url, username)
+        return self.url_request(url)
 
     def list_groups(self, username=None):
         """
@@ -526,22 +638,23 @@ class AGOLHelper(object):
 
         return groups
 
-    def add_item(self, file2Upload, username=None, itemtype=None, params=None):
+    def add_item(self, file_to_upload, username=None, folder_id=None, itemtype=None, params=None):
         """
         Adds an item to the portal.
-        All items are added as multipart. Once the item is added, Add Part will be called.
+        All items are added as multipart. Once the item is added,
+        Add Part will be called.
 
         Returns:
-            The response/itemID of the item added.
+            The response/item_id of the item added.
         """
         if username is None:
             username = self.username
 
-        url = '{}/content/users/{}/addItem'.format(self.base_url, username)
-        parameters = {'multipart': 'true',
-                      'filename': file2Upload,
-                      'token': self.token,
-                      'f': 'json'}
+        url = '{}/content/users/{}/{}/addItem'.format(self.base_url, username, folder_id)
+        parameters = {
+            'multipart': 'true',
+            'filename': file_to_upload,
+        }
         if params:
             parameters.update(params)
 
@@ -549,49 +662,52 @@ class AGOLHelper(object):
             parameters['type'] = itemtype
         else:
             try:
-                itemtype = itemTypes[file2Upload.upper()]
+                file_name, file_ext = os.path.splitext(os.path.basename(file_to_upload))
+                itemtype = ITEM_TYPES[file_ext.upper()]
             except KeyError:
-                arcpy.AddError("Unable to uplaod file: {0}, unknown type".format(file2Upload))
+                msg = "Unable to upload file: {}, unknown type".format(
+                    file_to_upload)
+                arcpy.AddError(msg)
                 return
 
-        addItemRes = self.url_request(url, parameters, "POST", "", {'filename': file2Upload})
+        details = {'filename': file_to_upload}
+        add_item_res = self.url_request(
+            url, parameters, request_type="POST", files=details)
 
-        addPartRes = self._add_part(file2Upload, addItemRes['id'], itemtype)
+        return self._add_part(file_to_upload, add_item_res['id'], itemtype)
 
-        return addPartRes
-
-    def _add_part(self, file2Upload, itemID, uploadType=None):
+    def _add_part(self, file_to_upload, item_id, upload_type=None):
+        """ Add item part to an item being uploaded."""
 
         def read_in_chunks(file_object, chunk_size=10000000):
-            """Generate file chunks of 10mb"""
+            """Generate file chunks (default: 10MB)"""
             while True:
                 data = file_object.read(chunk_size)
                 if not data:
                     break
                 yield data
 
-        url = '{}/content/users/{}/items/{}/addPart'.format(self.base_url, self.username, itemID)
+        url = '{}/content/users/{}/items/{}/addPart'.format(
+            self.base_url, self.username, item_id)
 
-        f = open(file2Upload, 'rb')
-
-        for part_num, piece in enumerate(read_in_chunks(f), start=1):
-            title = os.path.basename(file2Upload)
-            files = {"file": {"filename": file2Upload, "content": piece}}
-            params = {"f": "json",
-                      "token": self.token,
-                      'partNum': part_num,
-                      'title': title,
-                      'itemType': 'file',
-                      'type': uploadType
-                      }
-            request_headers, request_data = MultipartFormdataEncoder().encodeForm(params, files)
-            resp = self.url_request(url, request_data, "MULTIPART", request_headers)
-
-        f.close()
+        with open(file_to_upload, 'rb') as f:
+            for part_num, piece in enumerate(read_in_chunks(f), start=1):
+                title = os.path.splitext(os.path.basename(file_to_upload))[0]
+                files = {"file": {"filename": file_to_upload, "content": piece}}
+                params = {
+                    'f': "json",
+                    'token': self.token,
+                    'partNum': part_num,
+                    'title': title,
+                    'itemType': 'file',
+                    'type': upload_type
+                }
+                headers, data = MultipartFormdataEncoder().encodeForm(params, files)
+                resp = self.url_request(url, data, "MULTIPART", headers, repeat=1)
 
         return resp
 
-    def item_status(self, itemID, username=None):
+    def item_status(self, item_id, username=None):
         """
         Gets the status of an item.
 
@@ -601,13 +717,12 @@ class AGOLHelper(object):
         if username is None:
             username = self.username
 
-        url = '{}/content/users/{}/items/{}/status'.format(self.base_url, username, itemID)
-        parameters = {'token': self.token,
-                      'f': 'json'}
+        url = '{}/content/users/{}/items/{}/status'.format(
+            self.base_url, username, item_id)
 
-        return self.url_request(url, parameters)
+        return self.url_request(url)
 
-    def commit(self, itemID, username=None):
+    def commit(self, item_id, username=None):
         """
         Commits an item that was uploaded as multipart
 
@@ -617,39 +732,58 @@ class AGOLHelper(object):
         if username is None:
             username = self.username
 
-        url = '{}/content/users/{}/items/{}/commit'.format(self.base_url, username, itemID)
-        parameters = {'token': self.token,
-                      'f': 'json'}
+        url = '{}/content/users/{}/items/{}/commit'.format(
+            self.base_url, username, item_id)
 
-        return self.url_request(url, parameters)
+        return self.url_request(url)
 
-    def update_item(self, itemID, metadata, username=None):
+    def update_item(self, item_id, metadata, username=None, folder_id=None, title=None):
         """
         Updates metadata parts of an item.
         Metadata expected as a tuple
 
         Returns:
-            Result of calling update. (success: true| false)
+            Result of calling update. (success: true | false)
         """
         if username is None:
             username = self.username
 
-        url = "{}/content/users/{}/items/{}/update".format(self.base_url, username, itemID)
-        parameters = {'description' : metadata[0],
-                      'snippet' : metadata[0],
-                      'tags': metadata[1],
-                      'accessInformation' : metadata[2],
-                      'token' : self.token,
-                      'f': 'json'}
+        url = "{}/content/users/{}/{}/items/{}/update".format(
+            self.base_url, username, folder_id, item_id)
 
-        return self.url_request(url, parameters, 'POST')
+        parameters = {
+            'snippet': metadata[0],
+            'description': metadata[1],
+            'tags': metadata[2],
+            'accessInformation': metadata[3],
+            'licenseInfo': metadata[4],
+            'token': self.token,
+            'f': 'json'
+        }
+        if title:
+            parameters['title'] = title
+
+        if len(metadata) > 5:
+            parameters['thumbnail'] = metadata[5]
+
+            with open(metadata[5], 'rb') as f:
+                d = f.read()
+                files = {"thumbnail": {"filename": metadata[5], "content": d }}
+                headers, data = MultipartFormdataEncoder().encodeForm(parameters, files)
+                resp = self.url_request(url, data, "MULTIPART", headers, repeat=1)
+
+            return resp
+
+        else:
+            return self.url_request(url, parameters, 'POST')
 
 
-    def url_request(self, in_url, request_parameters, request_type='GET',
-                    additional_headers=None, files=None, repeat=None):
+    def url_request(self, in_url, request_parameters=None, request_type='GET',
+                    additional_headers=None, files=None, repeat=0):
         """
         Make a request to the portal, provided a portal URL
-        and request parameters, returns portal response.
+        and request parameters, returns portal response. By default,
+        returns a JSON response, and reuses the current token.
 
         Arguments:
             in_url -- portal url
@@ -663,26 +797,45 @@ class AGOLHelper(object):
             dictionary of response from portal instance.
         """
 
+        # multipart requests pre-encode the parameters
+        if request_type == 'MULTIPART':
+            parameters = request_parameters
+        else:
+            parameters = {'f': 'json'}
+            # if we haven't logged in yet, won't have a valid token
+            if self.token:
+                parameters['token'] = self.token
+            if request_parameters:
+                parameters.update(request_parameters)
+
         if request_type == 'GET':
-            req = request('?'.join((in_url, encode(request_parameters))))
+            req = request('?'.join((in_url, encode(parameters))))
         elif request_type == 'MULTIPART':
-            req = request(in_url, request_parameters)
-        elif request_type == "WEBMAP":
+            req = request(in_url, parameters)
+        elif request_type == 'WEBMAP':
             if files:
-                req = request(in_url,
-                                      *self.encode_multipart_data(
-                                          request_parameters, files))
+                req = request(in_url, *self.encode_multipart_data(parameters, files))
             else:
                 arcpy.AddWarning("Multipart request made, but no files provided.")
                 return
         else:
-            req = request(in_url, encode(request_parameters).encode('UTF-8'), self.headers)
+            req = request(
+                in_url, encode(parameters).encode('UTF-8'), self.headers)
 
         if additional_headers:
             for key, value in list(additional_headers.items()):
                 req.add_header(key, value)
         req.add_header('Accept-encoding', 'gzip')
-        response = urlopen(req)
+        try:
+            response = urlopen(req)
+        except HTTPError as e:
+            arcpy.AddWarning("{} {} -- {}".format(
+                HTTP_ERROR_MSG, in_url, e.code))
+            return
+        except URLError as e:
+            arcpy.AddWarning("{} {} -- {}".format(
+                URL_ERROR_MSG, in_url, e.reason))
+            return
 
         if response.info().get('Content-Encoding') == 'gzip':
             buf = BytesIO(response.read())
@@ -693,13 +846,10 @@ class AGOLHelper(object):
 
         response_text = response_bytes.decode('UTF-8')
 
-        # Check that data returned is not an error object
-        # if not self.assert_json_success(response_text):
-        #     return
-
         # occasional timing conflicts; repeat until we get back a valid response.
         response_json = json.loads(response_text)
 
+        # Check that data returned is not an error object
         if not response_json or "error" in response_json:
             rerun = False
             if repeat > 0:
@@ -730,6 +880,17 @@ class AGOLHelper(object):
 
         return response_json
 
+    def save_file(self, url, saveFile):
+        """Saves a file to a given location"""
+
+        if self.token:
+            url += "?token={}".format(self.token)
+
+        data = urlopen(url).read()
+        with open(saveFile, "wb") as out_file:
+            out_file.write(data)
+
+        return saveFile
 
     def assert_json_success(self, data):
         """A function that checks that the input JSON object
@@ -761,7 +922,6 @@ class AGOLHelper(object):
         else:
             success = True
         return success
-
 
     def _parse_url(self, url=None):
         """ Parse a url into components."""
