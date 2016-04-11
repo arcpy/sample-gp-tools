@@ -3,7 +3,8 @@
 These tools are provided by Esri as samples to be used with ArcGIS Desktop (ArcMap, ArcCatalog, ArcGIS Pro, etc). No support is expressed or implied. Each tool has been documented with individual help in its given folder. Download an individual tool or clone the entire repository and use the **SampleTools.tbx**.
 
 ## Tools
-
+* [Dataset Extent To Features](DatasetExtentToFeatures)
+  * Creates a polygon for the extent of each input geodataset.
 * [Features to GPX](FeaturesToGPX)
   * Convert features into a GPX file.
 * [Layer To KML with Attachments](LayerToKML_attachments)
