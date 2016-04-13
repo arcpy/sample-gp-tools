@@ -857,7 +857,7 @@ class AGOLHelper(object):
                 rerun = True
 
             # token has expired. Revalidate, then rerun request
-            if response_json['error']['code'] is 498:
+            if response_json['error']['code'] == 498:
                 if self.debug:
                     arcpy.AddWarning("token invalid, retrying.")
                 if self.login_method is 'token':
