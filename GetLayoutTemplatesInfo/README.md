@@ -1,6 +1,6 @@
 ##Print Service Templates
 
-This script tool is designed to work with ExportWebMap geoprocessing tool in order to facilitate printing from web applications.
+This script tool is designed to work with ExportWebMap geoprocessing tool in order to retrieve metadata for all layout templates available to a printing service.
 
 This tool takes a folder location of map documents (.mxd files). The map files are layout templates and will be return as JSON (JavaScript object notation).
 
