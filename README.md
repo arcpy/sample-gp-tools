@@ -7,6 +7,8 @@ These tools are provided by Esri as samples to be used with ArcGIS Desktop (ArcM
   * Creates a polygon for the extent of each input geodataset.
 * [Features to GPX](FeaturesToGPX)
   * Convert features into a GPX file.
+* [GetLayoutTemplatesInfo](GetLayoutTemplatesInfo)
+  * Gets and provides JSON metadata from layouts for use with a printing service.
 * [Layer To KML with Attachments](LayerToKML_attachments)
   * Converts a layer featureclass into a KMZ file and insert images from attachments into the output KMZ popup.
 * [Near By Group](NearByGroup)
