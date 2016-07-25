@@ -116,32 +116,37 @@ def generatePointsFromFeatures(inputFC, descInput, zerodate=False):
             for row in searchCur:
                 if descInput.shapeType == "Polyline":
                     for part in row:
-                        newPart = False
-                        if not row[0] == previousPartNum or startTrack is True:
-                            startTrack = False
-                            newPart = True
-                        previousPartNum = row[0]
-
-                        attHelper(row)
-                        yield "trk", newPart
+                        try:
+                            newPart = False
+                            if not row[0] == previousPartNum or startTrack is True:
+                                startTrack = False
+                                newPart = True
+                            previousPartNum = row[0]
+    
+                            attHelper(row)
+                            yield "trk", newPart
+                        except:
+                            arcpy.AddWarning("Problem reading values for row: {}. Skipping.".format(row[0]))
 
                 elif descInput.shapeType == "Multipoint" or descInput.shapeType == "Point":
                     # check to see if data was original GPX with "Type" of "TRKPT" or "WPT"
                     trkType = row[fieldNameDict["TYPE"]].upper() if "TYPE" in fields else None
-
-                    attHelper(row)
-
-                    if trkType == "TRKPT":
-                        newPart = False
-                        if previousPartNum == 0:
-                            newPart = True
-                            previousPartNum = 1
-
-                        yield "trk", newPart
-
-                    else:
-                        yield "wpt", None
-
+                    try:
+                        attHelper(row)
+    
+                        if trkType == "TRKPT":
+                            newPart = False
+                            if previousPartNum == 0:
+                                newPart = True
+                                previousPartNum = 1
+    
+                            yield "trk", newPart
+    
+                        else:
+                            yield "wpt", None
+                    except:
+                        arcpy.AddWarning("Problem reading values for row: {}. Skipping.".format(row[0]))
+                        
     # ---------end get values function-------------
 
 
