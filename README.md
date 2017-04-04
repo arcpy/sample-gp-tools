@@ -5,6 +5,8 @@ These tools are provided by Esri as samples to be used with ArcGIS Desktop (ArcM
 ## Tools
 * [Dataset Extent To Features](DatasetExtentToFeatures)
   * Creates a polygon for the extent of each input geodataset.
+* [DescribeObjectReport ](DescribeObjectReport )
+  * Creates a report of all arcpy describe-object properties for an object. 
 * [Features to GPX](FeaturesToGPX)
   * Convert features into a GPX file.
 * [GetLayoutTemplatesInfo](GetLayoutTemplatesInfo)
