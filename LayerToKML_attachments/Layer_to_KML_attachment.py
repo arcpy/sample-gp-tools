@@ -154,6 +154,16 @@ def attachments(KMLfiles, KMLdir, attachTable, seq=True, uniqueID=False, height=
 
 if __name__ == '__main__':
 
+  prodInfo = arcpy.GetInstallInfo()
+  if prodInfo['ProductName'] == "Desktop":
+    if float(prodInfo['Version']) >= 10.5:
+      arcpy.AddWarning("The KML to Layer tool was enhanced to automatically include attachments \
+      at the 10.5 release, effectively making this tool obsolete.")
+  elif prodInfo['ProductName'] == "ArcGISPro":
+    if float(prodInfo['Version']) >= 1.4:
+      arcpy.AddWarning("The KML to Layer tool was enhanced to automatically include attachments \
+      at the 1.4 release, effectively making this tool obsolete.")
+
   inputFeatures = arcpy.GetParameterAsText(0)
   outputKML = arcpy.GetParameterAsText(1)
   outputScale = arcpy.GetParameterAsText(2)
