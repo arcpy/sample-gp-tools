@@ -20,6 +20,7 @@ import os
 import sys
 import zipfile
 import shutil
+from distutils.version import StrictVersion
 try:
   from xml.etree import cElementTree as ElementTree
 except:
@@ -85,7 +86,7 @@ def attachments(KMLfiles, KMLdir, attachTable, seq=True, uniqueID=False, height=
   KML_NS = ".//{http://www.opengis.net/kml/2.2}"
   for node in tree.findall(KML_NS + 'Placemark'):
     idTxt = node.attrib['id']
-    idVal = long(idTxt.replace('ID_', '')) + 1 # add 1 because its 0 indexed.
+    idVal = int(idTxt.replace('ID_', '')) + 1 # add 1 because its 0 indexed.
     for node in node.findall(KML_NS + 'description') :
       html = node.text
 
@@ -156,11 +157,11 @@ if __name__ == '__main__':
 
   prodInfo = arcpy.GetInstallInfo()
   if prodInfo['ProductName'] == "Desktop":
-    if float(prodInfo['Version']) >= 10.5:
+    if StrictVersion(prodInfo['Version']) >= StrictVersion('10.5'):
       arcpy.AddWarning("The KML to Layer tool was enhanced to automatically include attachments \
       at the 10.5 release, effectively making this tool obsolete.")
   elif prodInfo['ProductName'] == "ArcGISPro":
-    if float(prodInfo['Version']) >= 1.4:
+    if StrictVersion(prodInfo['Version']) >= StrictVersion('1.4'):
       arcpy.AddWarning("The KML to Layer tool was enhanced to automatically include attachments \
       at the 1.4 release, effectively making this tool obsolete.")
 
@@ -191,7 +192,7 @@ if __name__ == '__main__':
     if not uniqueID:
       arcpy.AddError("You need to check the Allow Unique ID parameter (re-run tool and set to True).")
       arcpy.AddError("Note: This will add a field to your data, calc, and eventually remove it.")
-      arcpy.AddError("To maintain the integrity  of your data, make a copy of your data and provide this as input.")
+      arcpy.AddError("To maintain the integrity of your data, make a copy of your data and provide this as input.")
       sys.exit()
     else: # Add the new ID field to the data
       import uuid
@@ -201,7 +202,7 @@ if __name__ == '__main__':
 
       with arcpy.da.UpdateCursor(inputFeatures, ["tempIDField"]) as cursor:
         for row in cursor:
-          row[0] = str(uuid.uuid4().get_hex().upper()[0:16])
+          row[0] = str(uuid.uuid4().hex.upper()[0:16])
           cursor.updateRow(row)
       edit.stopEditing(True)
       arcpy.AddMessage("A temporary field was added to your data and will be removed when tool completes.")
