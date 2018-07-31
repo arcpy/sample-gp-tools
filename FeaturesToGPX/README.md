@@ -1,4 +1,4 @@
-##GPX to Features
+## GPX to Features
 
 Converts features (layers and feature classes of schema; point, multipoint and polyline) into GPX files.
 
